@@ -6,10 +6,13 @@ echo ======================================
 echo    CSV自动翻译工具 - 安装依赖
 echo ======================================
 echo.
+echo 配置pip清华镜像加速...
+pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+echo.
 echo 正在安装Python依赖包...
 echo.
 
-pip install -r requirements.txt
+pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 if errorlevel 1 (
     echo.

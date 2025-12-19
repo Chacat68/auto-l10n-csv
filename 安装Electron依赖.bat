@@ -6,6 +6,10 @@ echo ======================================
 echo    安装Electron依赖
 echo ======================================
 echo.
+echo 配置npm淘宝镜像加速...
+npm config set registry https://registry.npmmirror.com/
+npm config set electron_mirror https://npmmirror.com/mirrors/electron/
+echo.
 echo 正在安装Node.js依赖包...
 echo.
 
