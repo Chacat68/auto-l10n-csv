@@ -248,8 +248,8 @@ class TranslatorGUI:
         """清空日志"""
         self.log_text.delete("1.0", "end")
     
-    def translate_text(self, text: str, target_lang: str, source_lang: str = 'zh-cn') -> str:
-        """翻译文本"""
+    def translate_text(self, text: str, target_lang: str, source_lang: str = 'zh-cn', retry_count: int = 3) -> str:
+        """翻译文本（带重试机制）"""
         if not text or text.strip() == '':
             return ''
         
@@ -257,15 +257,25 @@ class TranslatorGUI:
         if cache_key in self.translation_cache:
             return self.translation_cache[cache_key]
         
-        try:
-            result = self.translator.translate(text, src=source_lang, dest=target_lang)
-            translated = result.text
-            self.translation_cache[cache_key] = translated
-            time.sleep(0.1)  # 避免API速率限制
-            return translated
-        except Exception as e:
-            self.log(f"翻译失败: {text[:30]}... -> {target_lang}, 错误: {str(e)}")
-            return text
+        # 重试机制
+        for attempt in range(retry_count):
+            try:
+                result = self.translator.translate(text, src=source_lang, dest=target_lang)
+                translated = result.text
+                self.translation_cache[cache_key] = translated
+                time.sleep(0.1)  # 避免API速率限制
+                return translated
+            except Exception as e:
+                if attempt < retry_count - 1:
+                    wait_time = (attempt + 1) * 2  # 指数退避：2秒、4秒、6秒
+                    self.log(f"⚠️ 翻译失败，{wait_time}秒后重试 ({attempt + 1}/{retry_count}): {str(e)[:50]}")
+                    time.sleep(wait_time)
+                else:
+                    self.log(f"❌ 翻译失败（已重试{retry_count}次）: {text[:30]}... -> {target_lang}")
+                    self.log(f"   错误信息: {str(e)}")
+                    return text  # 返回原文
+        
+        return text
     
     def start_translation(self):
         """开始翻译"""
@@ -299,6 +309,10 @@ class TranslatorGUI:
         # 禁用开始按钮，启用停止按钮
         self.start_button.configure(state="disabled")
         self.stop_button.configure(state="normal")
+        self.is_translating = True
+        
+        # 清空之前的日志（可选）
+        # self.clear_log()
         
         # 在新线程中执行翻译
         thread = threading.Thread(target=self.do_translation, 
@@ -339,9 +353,14 @@ class TranslatorGUI:
                     raise ValueError(f"目标列 '{col}' 不存在于CSV文件中")
             
             total_rows = len(rows)
-            self.log(f"共 {total_rows} 行数据\n")
+            self.log(f"共 {total_rows} 行数据")
+            self.log(f"翻译状态: {'启动' if self.is_translating else '未启动'}\n")
             
             self.progress_bar.set(0)
+            
+            translated_count = 0
+            skipped_count = 0
+            failed_count = 0
             
             # 翻译每一行
             for idx, row in enumerate(rows, 1):
@@ -355,18 +374,21 @@ class TranslatorGUI:
                     progress_percent = idx / total_rows
                     self.progress_var.set(f"⏳ 进度: {idx}/{total_rows} (跳过空行)")
                     self.progress_bar.set(progress_percent)
+                    skipped_count += 1
                     continue
                 
                 progress_percent = idx / total_rows
                 self.progress_var.set(f"⏳ 翻译中: {idx}/{total_rows} ({int(progress_percent*100)}%)")
                 self.log(f"[{idx}/{total_rows}] 处理: {source_text[:40]}...")
                 
+                row_translated = False
                 for target_col in target_cols:
                     if not self.is_translating:
                         break
                     
                     if skip_existing and row.get(target_col, '').strip():
                         self.log(f"  - {target_col}: 已有翻译，跳过")
+                        skipped_count += 1
                         continue
                     
                     target_lang = lang_map.get(target_col)
@@ -374,28 +396,74 @@ class TranslatorGUI:
                         continue
                     
                     translated = self.translate_text(source_text, target_lang)
-                    row[target_col] = translated
-                    self.log(f"  - {target_col}: {translated[:40]}...")
+                    if translated != source_text:  # 翻译成功
+                        row[target_col] = translated
+                        self.log(f"  - {target_col}: {translated[:40]}...")
+                        translated_count += 1
+                        row_translated = True
+                    else:  # 翻译失败
+                        failed_count += 1
                 
                 self.progress_bar.set(progress_percent)
+                
+                # 每处理100行保存一次（可选的自动保存）
+                if idx % 100 == 0:
+                    self.log(f"💾 已处理 {idx} 行，自动保存中...")
+                    try:
+                        with open(output_file + '.temp', 'w', encoding='utf-8-sig', newline='') as f:
+                            writer = csv.DictWriter(f, fieldnames=fieldnames)
+                            writer.writeheader()
+                            writer.writerows(rows)
+                    except Exception as save_error:
+                        self.log(f"⚠️ 自动保存失败: {str(save_error)}")
+                
                 self.log("")
             
             if self.is_translating:
                 # 写入输出文件
+                self.log("\n💾 正在保存最终文件...")
                 with open(output_file, 'w', encoding='utf-8-sig', newline='') as f:
                     writer = csv.DictWriter(f, fieldnames=fieldnames)
                     writer.writeheader()
                     writer.writerows(rows)
                 
-                self.log(f"✅ 翻译完成！输出文件: {output_file}")
-                self.log(f"📊 共处理 {total_rows} 行数据")
+                # 删除临时文件
+                temp_file = output_file + '.temp'
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+                
+                self.log(f"\n✅ 翻译完成！输出文件: {output_file}")
+                self.log(f"📊 统计信息:")
+                self.log(f"   - 总行数: {total_rows}")
+                self.log(f"   - 成功翻译: {translated_count}")
+                self.log(f"   - 跳过: {skipped_count}")
+                self.log(f"   - 失败: {failed_count}")
                 self.progress_var.set("✅ 完成!")
                 self.progress_bar.set(1.0)
-                messagebox.showinfo("完成", f"✅ 翻译完成！\n\n输出文件:\n{output_file}")
+                messagebox.showinfo("完成", f"✅ 翻译完成！\n\n输出文件:\n{output_file}\n\n成功: {translated_count} | 跳过: {skipped_count} | 失败: {failed_count}")
+            else:
+                self.log(f"\n⚠️ 翻译被中断")
+                self.log(f"📊 统计信息:")
+                self.log(f"   - 已处理: {idx}/{total_rows}")
+                self.log(f"   - 成功翻译: {translated_count}")
+                self.log(f"   - 跳过: {skipped_count}")
+                self.log(f"   - 失败: {failed_count}")
+                self.progress_var.set("⚠️ 已中断")
+                
+                # 询问是否保存已翻译的部分
+                if messagebox.askyesno("翻译中断", f"翻译已中断，是否保存已翻译的 {idx} 行数据？"):
+                    with open(output_file, 'w', encoding='utf-8-sig', newline='') as f:
+                        writer = csv.DictWriter(f, fieldnames=fieldnames)
+                        writer.writeheader()
+                        writer.writerows(rows)
+                    self.log(f"💾 已保存部分翻译: {output_file}")
             
         except Exception as e:
+            import traceback
+            error_detail = traceback.format_exc()
             self.log(f"\n❌ 错误: {str(e)}")
-            messagebox.showerror("错误", f"❌ 翻译过程中出现错误:\n\n{str(e)}")
+            self.log(f"详细错误信息:\n{error_detail}")
+            messagebox.showerror("错误", f"❌ 翻译过程中出现错误:\n\n{str(e)}\n\n详见日志")
             self.progress_var.set("❌ 错误")
         
         finally:
