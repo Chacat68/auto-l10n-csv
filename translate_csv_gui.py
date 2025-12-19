@@ -10,8 +10,13 @@ import csv
 import os
 import threading
 import time
-from typing import List
+from typing import List, Optional
+import requests
 from googletrans import Translator
+import urllib3
+
+# 禁用SSL警告
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # 设置外观模式和默认颜色主题
 ctk.set_appearance_mode("System")  # Modes: "System" (standard), "Dark", "Light"
@@ -43,7 +48,13 @@ class TranslatorGUI:
         # 设置窗口图标（如果有的话）
         # self.root.iconbitmap("icon.ico")
         
-        self.translator = Translator()
+        # 初始化多个翻译器实例（提高成功率）
+        self.translators = [
+            Translator(service_urls=['translate.google.com']),
+            Translator(service_urls=['translate.google.cn']),
+            Translator()
+        ]
+        self.current_translator_index = 0
         self.translation_cache = {}
         self.is_translating = False
         
@@ -248,34 +259,94 @@ class TranslatorGUI:
         """清空日志"""
         self.log_text.delete("1.0", "end")
     
+    def get_translator(self):
+        """获取当前翻译器实例"""
+        return self.translators[self.current_translator_index]
+    
+    def switch_translator(self):
+        """切换到下一个翻译器"""
+        self.current_translator_index = (self.current_translator_index + 1) % len(self.translators)
+        self.log(f"🔄 切换翻译器 (使用备用服务 {self.current_translator_index + 1})")
+    
+    def translate_with_mymemory(self, text: str, target_lang: str, source_lang: str = 'zh-cn') -> Optional[str]:
+        """使用MyMemory API作为备用翻译服务"""
+        try:
+            # MyMemory API支持的语言代码
+            lang_map = {'zh-cn': 'zh-CN', 'th': 'th-TH', 'vi': 'vi-VN'}
+            src = lang_map.get(source_lang, source_lang)
+            tgt = lang_map.get(target_lang, target_lang)
+            
+            url = f"https://api.mymemory.translated.net/get"
+            params = {
+                'q': text,
+                'langpair': f'{src}|{tgt}'
+            }
+            
+            response = requests.get(url, params=params, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('responseStatus') == 200:
+                    return data['responseData']['translatedText']
+            return None
+        except Exception as e:
+            self.log(f"⚠️ MyMemory API失败: {str(e)[:50]}")
+            return None
+    
     def translate_text(self, text: str, target_lang: str, source_lang: str = 'zh-cn', retry_count: int = 3) -> str:
-        """翻译文本（带重试机制）"""
+        """翻译文本（带重试机制和多翻译源）"""
         if not text or text.strip() == '':
             return ''
+        
+        # 清理文本中的特殊字符
+        text = text.strip()
         
         cache_key = f"{text}_{source_lang}_{target_lang}"
         if cache_key in self.translation_cache:
             return self.translation_cache[cache_key]
         
-        # 重试机制
+        last_error = None
+        
+        # 尝试使用Google翻译（多个实例轮换）
         for attempt in range(retry_count):
             try:
-                result = self.translator.translate(text, src=source_lang, dest=target_lang)
-                translated = result.text
-                self.translation_cache[cache_key] = translated
-                time.sleep(0.1)  # 避免API速率限制
-                return translated
+                translator = self.get_translator()
+                result = translator.translate(text, src=source_lang, dest=target_lang)
+                
+                if result and result.text:
+                    translated = result.text
+                    self.translation_cache[cache_key] = translated
+                    time.sleep(0.15)  # 避免API速率限制
+                    return translated
+                    
             except Exception as e:
-                if attempt < retry_count - 1:
-                    wait_time = (attempt + 1) * 2  # 指数退避：2秒、4秒、6秒
-                    self.log(f"⚠️ 翻译失败，{wait_time}秒后重试 ({attempt + 1}/{retry_count}): {str(e)[:50]}")
+                last_error = e
+                error_msg = str(e)
+                
+                # 如果是429错误（Too Many Requests）或连接错误，切换翻译器
+                if '429' in error_msg or 'Connection' in error_msg or 'Timeout' in error_msg:
+                    self.switch_translator()
+                    wait_time = (attempt + 1) * 2
+                    self.log(f"⚠️ 翻译器繁忙，{wait_time}秒后重试 ({attempt + 1}/{retry_count})")
                     time.sleep(wait_time)
                 else:
-                    self.log(f"❌ 翻译失败（已重试{retry_count}次）: {text[:30]}... -> {target_lang}")
-                    self.log(f"   错误信息: {str(e)}")
-                    return text  # 返回原文
+                    if attempt < retry_count - 1:
+                        wait_time = (attempt + 1) * 1.5
+                        self.log(f"⚠️ 翻译失败，{wait_time:.1f}秒后重试 ({attempt + 1}/{retry_count}): {error_msg[:40]}")
+                        time.sleep(wait_time)
         
-        return text
+        # Google翻译失败后，尝试备用API
+        self.log(f"🔄 尝试使用备用翻译服务...")
+        backup_result = self.translate_with_mymemory(text, target_lang, source_lang)
+        if backup_result:
+            self.translation_cache[cache_key] = backup_result
+            time.sleep(0.2)
+            return backup_result
+        
+        # 所有方法都失败
+        self.log(f"❌ 翻译完全失败: {text[:30]}... -> {target_lang}")
+        if last_error:
+            self.log(f"   最后错误: {str(last_error)[:100]}")
+        return text  # 返回原文
     
     def start_translation(self):
         """开始翻译"""

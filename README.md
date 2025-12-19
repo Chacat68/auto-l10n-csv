@@ -2,53 +2,69 @@
 
 🌍 自动翻译CSV文件中的多语言列（TH泰语、VN越南语）
 
-## 功能特点
+## ✨ 功能特点
 
+### 核心功能
 - ✅ 自动翻译CSV文件中的指定列
 - ✅ 支持从中文翻译到泰语(TH)和越南语(VN)
 - ✅ 智能跳过已有翻译的单元格
-- ✅ 使用Google翻译API（免费）
+- ✅ 多翻译引擎支持（Google + MyMemory备用）
 - ✅ 支持HTML标签保留
 - ✅ 翻译结果缓存，避免重复翻译
-- ✅ 现代化GUI界面 (基于CustomTkinter)
-- ✅ 支持深色/浅色主题自动切换
-- ✅ 实时进度显示和日志输出
+- ✅ 智能重试机制和错误恢复
 
-## 快速开始
+### 界面选择
+- 🖥️ **Electron桌面应用** (推荐) - 现代化跨平台桌面应用
+- 🐍 **Python GUI** - 基于CustomTkinter的轻量级界面
+- ⌨️ **命令行工具** - 适合批处理和自动化
 
-### Windows用户（最简单）
+## 🚀 快速开始
 
-1. **双击运行 `安装依赖.bat`** - 自动安装所需依赖
-2. **双击运行 `启动GUI.bat`** - 启动图形界面
+### 方式一：Electron 桌面应用（推荐）
 
-### 所有平台
+现代化的跨平台桌面应用，无需Python环境！
 
-1. **克隆或下载项目**
 ```bash
-git clone <repository-url>
-cd auto-l10n-csv
+# 1. 安装Node.js依赖
+npm install
+
+# 2. 启动应用
+npm start
 ```
 
-2. **安装Python依赖**
+**打包为独立应用：**
 ```bash
+# Windows
+npm run build:win
+
+# macOS
+npm run build:mac
+
+# Linux
+npm run build:linux
+```
+
+### 方式二：Python GUI
+
+基于CustomTkinter的轻量级界面。
+
+**Windows用户：**
+1. 双击 `安装依赖.bat` - 自动安装依赖
+2. 双击 `启动GUI.bat` - 启动界面
+
+**所有平台：**
+```bash
+# 安装依赖
 pip install -r requirements.txt
-```
 
-3. **选择启动方式**
-
-**方式A：统一启动器（推荐）**
-```bash
-python start.py
-```
-交互式菜单，选择GUI或命令行模式
-
-**方式B：直接启动GUI**
-```bash
+# 启动GUI
 python translate_csv_gui.py
-# 或 Windows双击: 启动GUI.bat
 ```
 
-**方式C：命令行模式**
+### 方式三：命令行
+
+适合批处理和自动化脚本。
+
 ```bash
 python translate_csv.py input.csv
 ```
@@ -175,37 +191,48 @@ item,quality,name,前端,B41,高级残卷,Cuộn cấp cao,ม้วนระด
 
 ```
 auto-l10n-csv/
-├── translate_csv.py         # 命令行版本主程序
-├── translate_csv_gui.py     # GUI版本主程序（推荐）
-├── start.py                 # 统一启动器
-├── 启动GUI.bat              # Windows一键启动GUI
-├── 安装依赖.bat             # Windows一键安装依赖
-├── requirements.txt         # Python依赖
-├── config.example.py        # 配置示例
-├── .gitignore              # Git忽略文件
-└── README.md               # 项目文档
+├── electron/                    # Electron桌面应用
+│   ├── main.js                 # 主进程
+│   ├── preload.js              # 预加载脚本
+│   └── renderer/               # 渲染进程
+│       ├── index.html          # 主界面
+│       ├── styles.css          # 样式表
+│       └── app.js              # 前端逻辑
+├── translate_csv.py            # Python翻译引擎（命令行）
+├── translate_csv_gui.py        # Python GUI版本
+├── start.py                    # Python统一启动器
+├── test_translation.py         # 翻译接口测试
+├── 启动GUI.bat                 # Windows快捷启动
+├── 安装依赖.bat                # Windows依赖安装
+├── package.json                # Node.js配置
+├── requirements.txt            # Python依赖
+└── README.md                   # 项目文档
 ```
 
-## 启动方式总览
+## 📊 启动方式对比
 
-| 方式 | 命令/操作 | 适用场景 |
-|------|----------|---------|
-| **统一启动器** | `python start.py` | 交互式选择GUI或CLI |
-| **GUI (推荐)** | `python translate_csv_gui.py` 或双击 `启动GUI.bat` | 可视化操作，适合所有用户 |
-| **命令行** | `python translate_csv.py <文件>` | 批处理、自动化脚本 |
-| **安装依赖** | 双击 `安装依赖.bat` (Windows) | 首次使用前安装 |
+| 方式 | 命令/操作 | 特点 | 适用场景 |
+|------|----------|------|---------|
+| **Electron应用** | `npm start` | 现代UI、跨平台、可打包 | 推荐所有用户 |
+| **Python GUI** | `python translate_csv_gui.py` | 轻量级、简单 | Python环境用户 |
+| **命令行** | `python translate_csv.py <文件>` | 高效、自动化 | 批处理脚本 |
+| **统一启动器** | `python start.py` | 交互式菜单 | 选择困难症 😄 |
 
-## GUI界面展示
+## 💻 界面展示
 
-### 主要特性
-- 🎨 **现代化UI**: 基于CustomTkinter的专业界面设计
-- 🌓 **智能主题**: 自动适配系统深色/浅色模式
-- 📁 **便捷操作**: 图形化文件选择，操作直观
-- 🗂️ **配置灵活**: 可视化配置源语言和目标语言
-- 📊 **进度可视**: 实时进度条和百分比显示
-- 📝 **日志详细**: 滚动日志窗口，记录每步操作
-- ⏯️ **流程控制**: 支持开始、停止、清空日志等操作
-- 🎭 **图标美化**: 使用Emoji增强视觉效果
+### Electron版本特性
+- 🎨 **现代化设计**: 渐变标题栏、卡片布局、流畅动画
+- 🌈 **精美UI**: Material Design风格、圆角卡片、悬浮效果
+- 📊 **实时反馈**: 动态进度条、彩色日志、状态图标
+- ⚡ **高性能**: 基于Chromium引擎，流畅运行
+- 📦 **可打包**: 支持Windows/Mac/Linux独立安装包
+- 🔒 **安全沙箱**: 进程隔离，安全可靠
+
+### Python GUI特性
+- 🎨 **CustomTkinter**: 现代化tkinter界面
+- 🌓 **主题切换**: 跟随系统深浅色模式
+- 📝 **详细日志**: 实时查看翻译过程
+- 🎯 **简单易用**: 轻量级，启动快速
 
 ## 许可证
 

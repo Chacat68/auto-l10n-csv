@@ -1,3 +1,18 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Electron
+dist/
+out/
+*.exe
+*.dmg
+*.AppImage
+
 # Python
 __pycache__/
 *.py[cod]
@@ -8,7 +23,6 @@ env/
 venv/
 ENV/
 build/
-dist/
 *.egg-info/
 
 # IDE
@@ -20,6 +34,10 @@ dist/
 # CSV files
 *_translated.csv
 *.backup.csv
+*.temp
+
+# Logs
+*.log
 
 # OS
 .DS_Store

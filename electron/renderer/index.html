@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CSV自动翻译工具</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- 标题栏 -->
+    <header class="app-header">
+      <div class="header-content">
+        <span class="header-icon">🌍</span>
+        <h1 class="header-title">CSV自动翻译工具</h1>
+      </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+      <!-- 文件选择区域 -->
+      <section class="card file-section">
+        <h2 class="section-title">📁 文件设置</h2>
+        
+        <div class="form-group">
+          <label for="inputFile">输入文件:</label>
+          <div class="file-input-group">
+            <input type="text" id="inputFile" class="file-input" readonly placeholder="点击选择CSV文件...">
+            <button id="btnSelectInput" class="btn btn-primary">
+              <span class="btn-icon">📂</span> 浏览
+            </button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="outputFile">输出文件:</label>
+          <div class="file-input-group">
+            <input type="text" id="outputFile" class="file-input" readonly placeholder="自动生成或手动选择...">
+            <button id="btnSelectOutput" class="btn btn-primary">
+              <span class="btn-icon">📂</span> 浏览
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 配置区域 -->
+      <section class="card config-section">
+        <h2 class="section-title">⚙️ 翻译配置</h2>
+        
+        <div class="config-row">
+          <div class="form-group">
+            <label for="sourceCol">源语言列:</label>
+            <input type="text" id="sourceCol" class="text-input" value="ZH" placeholder="例如: ZH">
+          </div>
+
+          <div class="form-group">
+            <label>目标语言:</label>
+            <div class="checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" id="targetTH" class="checkbox" checked>
+                <span class="checkbox-text">🇹🇭 TH (泰语)</span>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" id="targetVN" class="checkbox" checked>
+                <span class="checkbox-text">🇻🇳 VN (越南语)</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="skipExisting" class="checkbox" checked>
+            <span class="checkbox-text">⏭️ 跳过已有翻译</span>
+          </label>
+        </div>
+      </section>
+
+      <!-- 进度区域 -->
+      <section class="card progress-section">
+        <h2 class="section-title">📊 翻译进度</h2>
+        
+        <div class="progress-info">
+          <span id="progressText" class="progress-text">就绪 ✨</span>
+        </div>
+        
+        <div class="progress-bar-container">
+          <div id="progressBar" class="progress-bar" style="width: 0%"></div>
+        </div>
+      </section>
+
+      <!-- 日志区域 -->
+      <section class="card log-section">
+        <div class="log-header">
+          <h2 class="section-title">📋 翻译日志</h2>
+          <button id="btnClearLog" class="btn btn-secondary btn-sm">
+            <span class="btn-icon">🗑️</span> 清空
+          </button>
+        </div>
+        
+        <div id="logContainer" class="log-container"></div>
+      </section>
+
+      <!-- 操作按钮 -->
+      <div class="action-buttons">
+        <button id="btnStart" class="btn btn-success btn-lg">
+          <span class="btn-icon">▶️</span> 开始翻译
+        </button>
+        <button id="btnStop" class="btn btn-danger btn-lg" disabled>
+          <span class="btn-icon">⏹️</span> 停止
+        </button>
+      </div>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="app-footer">
+      <p>CSV自动翻译工具 v1.0.0 | 支持泰语、越南语翻译</p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
