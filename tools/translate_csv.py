@@ -166,7 +166,8 @@ class CSVTranslator:
                 {"role": "system", "content": f"你是一个专业的游戏本地化翻译助手。请将用户提供的中文文本翻译成{target_name}。只返回翻译结果，不要解释。保留所有HTML标签和特殊格式如<color=#xxx>。"},
                 {"role": "user", "content": text}
             ],
-            temperature=0.3
+            temperature=0.3,
+            stream=False
         )
         return response.choices[0].message.content.strip()
     
