@@ -83,6 +83,7 @@ class TranslatorApp:
         ("google-free", "Google翻译(免费)"),
         ("google-cloud", "Google Cloud API"),
         ("openai", "OpenAI GPT"),
+        ("deepseek", "DeepSeek(推荐)"),
         ("deepl", "DeepL API"),
     ]
     
@@ -291,8 +292,8 @@ class TranslatorApp:
                 if isinstance(widget, (ttk.Entry, ttk.Button, ttk.Checkbutton)):
                     widget.configure(state=tk.NORMAL)
             
-            # OpenAI支持自定义端点
-            if api_type == "openai":
+            # OpenAI和DeepSeek支持自定义端点
+            if api_type in ("openai", "deepseek"):
                 for widget in self.api_endpoint_frame.winfo_children():
                     if isinstance(widget, ttk.Entry):
                         widget.configure(state=tk.NORMAL)
@@ -465,7 +466,7 @@ class TranslatorApp:
             # 获取API设置
             api_type = self.api_type_var.get().split(" - ")[0]
             api_key = self.api_key_var.get() if api_type != "google-free" else None
-            api_endpoint = self.api_endpoint_var.get() if api_type == "openai" else None
+            api_endpoint = self.api_endpoint_var.get() if api_type in ("openai", "deepseek") else None
             
             self._log("=" * 50)
             self._log("开始翻译...")

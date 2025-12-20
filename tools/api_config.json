@@ -2,5 +2,9 @@
   "openai": {
     "api_key": "",
     "endpoint": ""
+  },
+  "deepseek": {
+    "api_key": "sk-9243d5a1a89d415dade0644b2ba3713d",
+    "endpoint": "https://api.deepseek.com/v1"
   }
 }

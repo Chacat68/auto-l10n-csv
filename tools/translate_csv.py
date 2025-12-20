@@ -76,6 +76,7 @@ class CSVTranslator:
         "google-free": "Google翻译(免费，有限制)",
         "google-cloud": "Google Cloud Translation API(需API Key)",
         "openai": "OpenAI GPT翻译(需API Key)",
+        "deepseek": "DeepSeek翻译(需API Key，推荐)",
         "deepl": "DeepL翻译(需API Key)",
     }
     
@@ -144,6 +145,25 @@ class CSVTranslator:
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": f"你是一个专业的翻译助手。请将用户提供的中文文本翻译成{target_name}。只返回翻译结果，不要解释。保留所有HTML标签和特殊格式。"},
+                {"role": "user", "content": text}
+            ],
+            temperature=0.3
+        )
+        return response.choices[0].message.content.strip()
+    
+    def _translate_with_deepseek(self, text: str, target_lang: str) -> str:
+        """使用DeepSeek API翻译"""
+        lang_names = {"th": "泰语", "vi": "越南语"}
+        target_name = lang_names.get(target_lang, target_lang)
+        
+        # DeepSeek API与OpenAI兼容
+        base_url = self.api_endpoint or "https://api.deepseek.com"
+        client = openai.OpenAI(api_key=self.api_key, base_url=base_url)
+        
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {"role": "system", "content": f"你是一个专业的游戏本地化翻译助手。请将用户提供的中文文本翻译成{target_name}。只返回翻译结果，不要解释。保留所有HTML标签和特殊格式如<color=#xxx>。"},
                 {"role": "user", "content": text}
             ],
             temperature=0.3
@@ -267,6 +287,8 @@ class CSVTranslator:
                 translated = self._translate_with_google_cloud(pure_text, target_lang)
             elif self.api_type == "openai":
                 translated = self._translate_with_openai(pure_text, target_lang)
+            elif self.api_type == "deepseek":
+                translated = self._translate_with_deepseek(pure_text, target_lang)
             elif self.api_type == "deepl":
                 translated = self._translate_with_deepl(pure_text, target_lang)
             else:
