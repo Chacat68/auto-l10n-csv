@@ -7,23 +7,62 @@ CSV翻译工具 - 将ZH列翻译成TH（泰语）和VN（越南语）
     python translate_csv.py input.csv -o output.csv
     python translate_csv.py input.csv --no-th  # 只翻译VN
     python translate_csv.py input.csv --force  # 强制重新翻译
+    python translate_csv.py input.csv --api-type google-cloud --api-key YOUR_KEY
 """
 
 import csv
 import os
 import re
 import time
+import json
 import argparse
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# 翻译库导入
+DEEP_TRANSLATOR_AVAILABLE = False
+GOOGLE_CLOUD_AVAILABLE = False
+OPENAI_AVAILABLE = False
 
 try:
     from deep_translator import GoogleTranslator
-    TRANSLATOR_AVAILABLE = True
+    DEEP_TRANSLATOR_AVAILABLE = True
 except ImportError:
-    TRANSLATOR_AVAILABLE = False
-    print("警告: 请安装 deep-translator: pip install deep-translator")
+    pass
+
+try:
+    from google.cloud import translate_v2 as google_translate
+    GOOGLE_CLOUD_AVAILABLE = True
+except ImportError:
+    pass
+
+try:
+    import openai
+    OPENAI_AVAILABLE = True
+except ImportError:
+    pass
+
+
+# 配置文件路径
+CONFIG_FILE = Path(__file__).parent / "api_config.json"
+
+
+def load_api_config() -> Dict[str, Any]:
+    """加载API配置"""
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            pass
+    return {}
+
+
+def save_api_config(config: Dict[str, Any]):
+    """保存API配置"""
+    with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+        json.dump(config, f, indent=2, ensure_ascii=False)
 
 
 class CSVTranslator:
@@ -32,24 +71,103 @@ class CSVTranslator:
     # 颜色标签正则表达式
     COLOR_TAG_PATTERN = re.compile(r'(<color[^>]*>|</color>)')
     
-    def __init__(self, translator_type: str = "google", api_key: Optional[str] = None):
+    # 支持的API类型
+    API_TYPES = {
+        "google-free": "Google翻译(免费，有限制)",
+        "google-cloud": "Google Cloud Translation API(需API Key)",
+        "openai": "OpenAI GPT翻译(需API Key)",
+        "deepl": "DeepL翻译(需API Key)",
+    }
+    
+    def __init__(self, api_type: str = "google-free", api_key: Optional[str] = None, 
+                 api_endpoint: Optional[str] = None):
         """
         初始化翻译器
         
         Args:
-            translator_type: 翻译器类型 ("google")
-            api_key: API密钥（保留参数，暂未使用）
+            api_type: API类型 ("google-free", "google-cloud", "openai", "deepl")
+            api_key: API密钥
+            api_endpoint: 自定义API端点（用于OpenAI兼容的API）
         """
-        self.translator_type = translator_type
+        self.api_type = api_type
+        self.api_key = api_key
+        self.api_endpoint = api_endpoint
         
-        if not TRANSLATOR_AVAILABLE:
+        # 验证依赖
+        if api_type == "google-free" and not DEEP_TRANSLATOR_AVAILABLE:
             raise ImportError("请安装 deep-translator: pip install deep-translator")
+        elif api_type == "google-cloud" and not GOOGLE_CLOUD_AVAILABLE:
+            raise ImportError("请安装 google-cloud-translate: pip install google-cloud-translate")
+        elif api_type == "openai" and not OPENAI_AVAILABLE:
+            raise ImportError("请安装 openai: pip install openai")
         
-        # 创建翻译器实例（每种语言需要单独创建）
-        self.translators = {
-            "th": GoogleTranslator(source='zh-CN', target='th'),
-            "vi": GoogleTranslator(source='zh-CN', target='vi'),
-        }
+        # 并发设置
+        self.max_workers = 5
+        
+        # 初始化API客户端
+        self._init_client()
+    
+    def _init_client(self):
+        """初始化API客户端"""
+        if self.api_type == "google-cloud" and self.api_key:
+            # 设置Google Cloud认证
+            os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = self.api_key
+        elif self.api_type == "openai" and self.api_key:
+            # 配置OpenAI
+            openai.api_key = self.api_key
+            if self.api_endpoint:
+                openai.api_base = self.api_endpoint
+    
+    def _create_translator(self, target_lang: str):
+        """为指定语言创建翻译器实例（线程安全）"""
+        if self.api_type == "google-free":
+            return GoogleTranslator(source='zh-CN', target=target_lang)
+        return None
+    
+    def _translate_with_google_cloud(self, text: str, target_lang: str) -> str:
+        """使用Google Cloud Translation API翻译"""
+        client = google_translate.Client()
+        # 语言代码映射
+        lang_map = {"th": "th", "vi": "vi"}
+        result = client.translate(text, target_language=lang_map.get(target_lang, target_lang), source_language='zh-CN')
+        return result['translatedText']
+    
+    def _translate_with_openai(self, text: str, target_lang: str) -> str:
+        """使用OpenAI API翻译"""
+        lang_names = {"th": "泰语", "vi": "越南语"}
+        target_name = lang_names.get(target_lang, target_lang)
+        
+        # 使用新版OpenAI API
+        client = openai.OpenAI(api_key=self.api_key, base_url=self.api_endpoint) if self.api_endpoint else openai.OpenAI(api_key=self.api_key)
+        
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": f"你是一个专业的翻译助手。请将用户提供的中文文本翻译成{target_name}。只返回翻译结果，不要解释。保留所有HTML标签和特殊格式。"},
+                {"role": "user", "content": text}
+            ],
+            temperature=0.3
+        )
+        return response.choices[0].message.content.strip()
+    
+    def _translate_with_deepl(self, text: str, target_lang: str) -> str:
+        """使用DeepL API翻译"""
+        import requests
+        
+        lang_map = {"th": "TH", "vi": "VI"}  # 注意：DeepL可能不支持这些语言
+        
+        url = "https://api-free.deepl.com/v2/translate"
+        if self.api_endpoint:
+            url = self.api_endpoint
+        
+        response = requests.post(url, data={
+            "auth_key": self.api_key,
+            "text": text,
+            "source_lang": "ZH",
+            "target_lang": lang_map.get(target_lang, target_lang.upper())
+        })
+        result = response.json()
+        return result['translations'][0]['text']
     
     def _extract_color_tags(self, text: str) -> tuple[str, list[tuple[int, str]]]:
         """
@@ -141,13 +259,19 @@ class CSVTranslator:
             return text
         
         try:
-            # 使用 deep-translator
-            translator = self.translators.get(target_lang)
-            if not translator:
-                print(f"不支持的目标语言: {target_lang}")
+            # 根据API类型选择翻译方法
+            if self.api_type == "google-free":
+                translator = self._create_translator(target_lang)
+                translated = translator.translate(pure_text)
+            elif self.api_type == "google-cloud":
+                translated = self._translate_with_google_cloud(pure_text, target_lang)
+            elif self.api_type == "openai":
+                translated = self._translate_with_openai(pure_text, target_lang)
+            elif self.api_type == "deepl":
+                translated = self._translate_with_deepl(pure_text, target_lang)
+            else:
+                print(f"不支持的API类型: {self.api_type}")
                 return text
-            
-            translated = translator.translate(pure_text)
             
             # 还原颜色标签
             return self._restore_color_tags(translated, tags, pure_text)
@@ -181,7 +305,7 @@ class CSVTranslator:
     def translate_csv(self, input_file: str, output_file: Optional[str] = None,
                       translate_th: bool = True, translate_vn: bool = True,
                       force: bool = False, batch_size: int = 10,
-                      delay: float = 0.5) -> dict:
+                      delay: float = 0.5, max_workers: int = 5) -> dict:
         """
         翻译CSV文件
         
@@ -193,6 +317,7 @@ class CSVTranslator:
             force: 是否强制翻译（即使已有翻译）
             batch_size: 批处理大小（每处理多少行保存一次）
             delay: 每次翻译后的延迟（秒），避免API限制
+            max_workers: 最大并发线程数（默认5，设为1禁用并发）
             
         Returns:
             翻译统计信息
@@ -233,42 +358,65 @@ class CSVTranslator:
             if col not in fieldnames:
                 raise ValueError(f"CSV文件缺少必要的列: {col}")
         
-        # 翻译
+        # 收集需要翻译的任务
+        tasks = []
         for i, row in enumerate(rows):
             zh_text = row.get("ZH", "")
             
             if translate_th:
                 th_text = row.get("TH", "")
                 if force or self.needs_translation(zh_text, th_text):
-                    print(f"[{i+1}/{len(rows)}] 翻译TH: {zh_text[:30]}...")
-                    try:
-                        row["TH"] = self.translate_text(zh_text, "th")
-                        stats["translated_th"] += 1
-                        time.sleep(delay)
-                    except Exception as e:
-                        print(f"  错误: {e}")
-                        stats["errors"] += 1
+                    tasks.append((i, "TH", "th", zh_text))
                 else:
                     stats["skipped_th"] += 1
             
             if translate_vn:
                 vn_text = row.get("VN", "")
                 if force or self.needs_translation(zh_text, vn_text):
-                    print(f"[{i+1}/{len(rows)}] 翻译VN: {zh_text[:30]}...")
-                    try:
-                        row["VN"] = self.translate_text(zh_text, "vi")
-                        stats["translated_vn"] += 1
-                        time.sleep(delay)
-                    except Exception as e:
-                        print(f"  错误: {e}")
-                        stats["errors"] += 1
+                    tasks.append((i, "VN", "vi", zh_text))
                 else:
                     stats["skipped_vn"] += 1
+        
+        print(f"需要翻译 {len(tasks)} 条内容，使用 {max_workers} 个并发线程")
+        
+        # 并发翻译
+        import threading
+        lock = threading.Lock()
+        completed = [0]
+        
+        def translate_task(task):
+            idx, col, lang, text = task
+            try:
+                result = self.translate_text(text, lang)
+                time.sleep(delay)
+                return (idx, col, lang, result, None)
+            except Exception as e:
+                return (idx, col, lang, text, str(e))
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(translate_task, task): task for task in tasks}
             
-            # 批量保存
-            if (i + 1) % batch_size == 0:
-                self._save_csv(output_file, fieldnames, rows)
-                print(f"已保存进度: {i+1}/{len(rows)}")
+            for future in as_completed(futures):
+                idx, col, lang, result, error = future.result()
+                
+                with lock:
+                    rows[idx][col] = result
+                    completed[0] += 1
+                    
+                    if error:
+                        print(f"[{completed[0]}/{len(tasks)}] {col}翻译错误: {error}")
+                        stats["errors"] += 1
+                    else:
+                        if col == "TH":
+                            stats["translated_th"] += 1
+                        else:
+                            stats["translated_vn"] += 1
+                        print(f"[{completed[0]}/{len(tasks)}] {col}: {rows[idx].get('ZH', '')[:20]}... -> {result[:20]}...")
+                    
+                    # 批量保存
+                    if completed[0] % batch_size == 0:
+                        self._save_csv(output_file, fieldnames, rows)
+                        print(f"已保存进度: {completed[0]}/{len(tasks)}")
         
         # 最终保存
         self._save_csv(output_file, fieldnames, rows)
@@ -297,7 +445,8 @@ def main():
                         help="翻译器类型（默认: google）")
     parser.add_argument("--api-key", help="DeepL API密钥")
     parser.add_argument("--batch-size", type=int, default=10, help="批处理大小（默认: 10）")
-    parser.add_argument("--delay", type=float, default=0.5, help="翻译延迟秒数（默认: 0.5）")
+    parser.add_argument("--delay", type=float, default=0.1, help="翻译延迟秒数（默认: 0.1）")
+    parser.add_argument("--workers", type=int, default=5, help="并发线程数（默认: 5，设为1禁用并发）")
     
     args = parser.parse_args()
     
@@ -319,7 +468,8 @@ def main():
         translate_vn=translate_vn,
         force=args.force,
         batch_size=args.batch_size,
-        delay=args.delay
+        delay=args.delay,
+        max_workers=args.workers
     )
     
     # 打印统计

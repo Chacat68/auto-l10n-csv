@@ -1,2 +1,14 @@
 # CSV翻译工具依赖
+
+# 必需依赖
 deep-translator>=1.11.4
+
+# 可选依赖（根据使用的API选择安装）
+# Google Cloud Translation API
+# google-cloud-translate>=3.0.0
+
+# OpenAI API
+# openai>=1.0.0
+
+# DeepL API (使用requests)
+# requests>=2.28.0
