@@ -1,0 +1,2 @@
+# CSV翻译工具依赖
+deep-translator>=1.11.4
