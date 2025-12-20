@@ -10,9 +10,68 @@ import threading
 import queue
 import csv
 import os
+import sys
+import subprocess
 from pathlib import Path
 from typing import Optional
 
+
+def check_dependencies():
+    """检查并安装所需依赖"""
+    missing_packages = []
+    
+    # 检查 deep-translator
+    try:
+        import deep_translator
+    except ImportError:
+        missing_packages.append("deep-translator")
+    
+    if missing_packages:
+        # 创建简单的提示窗口
+        root = tk.Tk()
+        root.withdraw()  # 隐藏主窗口
+        
+        msg = "检测到缺少以下依赖包:\n\n"
+        msg += "\n".join(f"  • {pkg}" for pkg in missing_packages)
+        msg += "\n\n是否自动安装？"
+        
+        result = messagebox.askyesno("依赖检查", msg, icon='warning')
+        
+        if result:
+            # 自动安装
+            root.destroy()
+            
+            print("正在安装依赖包...")
+            for pkg in missing_packages:
+                print(f"  安装 {pkg}...")
+                try:
+                    subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
+                    print(f"  ✓ {pkg} 安装成功")
+                except subprocess.CalledProcessError as e:
+                    print(f"  ✗ {pkg} 安装失败: {e}")
+                    messagebox.showerror("安装失败", 
+                        f"安装 {pkg} 失败!\n\n请手动运行:\npip install {pkg}")
+                    sys.exit(1)
+            
+            print("\n所有依赖安装完成，正在启动程序...")
+            # 重新导入模块
+            import importlib
+            importlib.invalidate_caches()
+        else:
+            # 用户取消，显示手动安装提示
+            install_cmd = "pip install " + " ".join(missing_packages)
+            messagebox.showinfo("安装提示", 
+                f"请手动安装依赖:\n\n{install_cmd}\n\n或运行:\npip install -r requirements.txt")
+            root.destroy()
+            sys.exit(0)
+    
+    return True
+
+
+# 启动时检查依赖
+check_dependencies()
+
+# 依赖检查通过后再导入
 from translate_csv import CSVTranslator
 
 
