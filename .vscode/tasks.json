@@ -1,0 +1,15 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Scan CSV for JSON-unsafe cells",
+			"type": "shell",
+			"command": "python",
+			"args": [
+				"tools\\check_csv_json_unsafe.py",
+				"CSV\\CN翻译提取_20251225_202755.csv"
+			],
+			"isBackground": false
+		}
+	]
+}

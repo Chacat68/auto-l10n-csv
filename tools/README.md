@@ -29,6 +29,39 @@ python translate_csv.py ../CSV/系统翻译提取_20251219_165646.csv
 python translate_csv.py input.csv -o output.csv
 ```
 
+### CSV 转 JSON（解决BOM/表头乱码导致的格式问题）
+
+有些外部“CSV→JSON”工具在遇到 UTF-8 BOM 时，会把 BOM 当成表头的一部分（例如第一列键变成 `\ufeffTable`），从而出现“转成JSON格式不对/字段名异常”。
+
+本工具提供一个稳健的转换脚本（自动去 BOM）：
+
+```bash
+python csv_to_json.py ../CSV/活动翻译提取_20251219_170632.csv -o ../CSV/活动翻译提取_20251219_170632.json
+```
+
+### 检测 CSV 文本是否会“炸”JSON
+
+如果你使用的“CSV→JSON”工具没有正确对字符串做 JSON 转义，CSV 单元格里出现这些字符就很容易导致 JSON 语法错误（例如 VS Code 报 `Expected comma` / `Colon expected`）：
+
+- `"`（双引号）
+- `\\`（反斜杠）
+- 换行/回车/Tab 等控制字符
+
+可以用下面脚本扫描并生成定位报告：
+
+```bash
+python check_csv_json_unsafe.py ../CSV/活动翻译提取_20251219_170632.csv --columns ZH,VN,TH
+```
+
+输出一个报告 CSV：`{input}_json_unsafe_report.csv`，包含行号、列名、问题类型和内容预览，方便你回到源表定位。
+
+可选参数：
+
+```bash
+# 指定输入/输出编码
+python csv_to_json.py input.csv -o output.json --input-encoding utf-8-sig --output-encoding utf-8
+```
+
 ### 选项
 
 ```bash
