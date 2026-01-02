@@ -1,0 +1,11 @@
+{
+  "openai": {
+    "api_key": "your-openai-api-key-here",
+    "endpoint": "https://api.openai.com/v1"
+  },
+  "deepseek": {
+    "api_key": "your-deepseek-api-key-here",
+    "endpoint": "https://api.deepseek.com/v1"
+  },
+  "default_type": "deepseek"
+}
