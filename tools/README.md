@@ -55,6 +55,18 @@ python check_csv_json_unsafe.py ../CSV/活动翻译提取_20251219_170632.csv --
 
 输出一个报告 CSV：`{input}_json_unsafe_report.csv`，包含行号、列名、问题类型和内容预览，方便你回到源表定位。
 
+### 生成“JSON-safe”CSV（给不转义的CSV→JSON工具用）
+
+如果你无法修改外部 CSV→JSON 工具，又必须用它（且它不做 JSON 转义），可以先生成一个“JSON-safe CSV”：
+
+```bash
+python sanitize_csv_for_json.py ../CSV/CN翻译提取_20251225_202755.csv
+```
+
+默认会对 `ZH,VN,TH` 三列做 JSON 级别的字符串转义，并输出：`*_jsonsafe.csv`。
+
+Windows 一键：双击 [tools/生成JSON安全CSV.bat](tools/生成JSON安全CSV.bat)
+
 可选参数：
 
 ```bash
