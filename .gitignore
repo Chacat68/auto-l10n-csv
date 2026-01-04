@@ -1,0 +1,22 @@
+# API 配置文件（包含密钥）
+tools/api_config.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.env
+.venv
+venv/
+ENV/
+
+# Node
+node_modules/
+
+# IDE
+.idea/
+*.swp
+*.swo
+.DS_Store
